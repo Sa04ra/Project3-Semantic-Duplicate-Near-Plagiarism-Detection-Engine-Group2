@@ -17,13 +17,11 @@ def clean_and_tokenize(text: str) -> list:
     # 2. Case normalization (convert to lowercase)
     text = text.lower()
 
-    # 3. Remove punctuation by replacing them with spaces
-    text = re.sub(r'[%s]' % re.escape(string.punctuation), ' ', text)
+    # 3. Remove punctuation by replacing them with spaces  
+    # Tokenization and removing extra spaces
+    tokens = re.findall(r'\b\w+\b', text)
 
-    # 4. Tokenization and removing extra spaces
-    tokens = text.split()
-
-    # 5. Remove highly frequent stop words
+    # 4. Remove highly frequent stop words
     filtered_tokens = [word for word in tokens if word not in STOP_WORDS]
 
     return filtered_tokens
