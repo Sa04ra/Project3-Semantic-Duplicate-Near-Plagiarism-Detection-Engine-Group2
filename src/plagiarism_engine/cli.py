@@ -14,10 +14,10 @@ def read_text(path: str) -> str:
     with open(path, 'r', encoding='utf-8') as f:
         return f.read()
 
-def get_signature(text: str, generator: MinHashGenerator):
+def get_signature(text: str, generator: MinHashGenerator, shingle_size: int = 3):
     """Helper: Converts raw text directly into a MinHash signature."""
     tokens = clean_and_tokenize(str(text))
-    shingles = generate_word_shingles(tokens, shingle_size=3)
+    shingles = generate_word_shingles(tokens, shingle_size=shingle_size)
     return generator.generate_signature(shingles)
 
 def handle_compare(args):
@@ -45,7 +45,7 @@ def handle_corpus(args):
     # 1. Process all text files and insert into LSH
     for filepath in Path(args.data).glob("**/*.txt"):
         doc_id = filepath.name
-        sig = get_signature(read_text(filepath), gen)
+        sig = get_signature(read_text(filepath), gen, shingle_size=args.shingle_size)
         db[doc_id] = sig
         lsh.insert(doc_id, sig)
         
@@ -116,6 +116,7 @@ def main():
     c2 = subparsers.add_parser("corpus")
     c2.add_argument("--data", required=True)
     c2.add_argument("--threshold", type=float, default=0.25)
+    c2.add_argument("--shingle-size", type=int, default=3)  
     c2.add_argument("--output", required=True)
     c2.set_defaults(func=handle_corpus)
 
