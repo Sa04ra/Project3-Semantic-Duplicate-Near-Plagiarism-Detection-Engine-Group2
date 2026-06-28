@@ -15,4 +15,4 @@ outputs/
 .ipynb_checkpoints/
 
 
-src/plagiarism_engine.egg-info/
+*.egg-info/
