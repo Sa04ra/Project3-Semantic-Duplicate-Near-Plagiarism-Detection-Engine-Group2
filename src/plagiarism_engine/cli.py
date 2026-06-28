@@ -242,6 +242,83 @@ def _compute_metrics(preds: List[int], labels: List[int]) -> tuple:
     f1   = 2 * prec * rec / (prec + rec) if (prec + rec) else 0.0
     return round(prec, 4), round(rec, 4), round(f1, 4)
 
+def evaluate_minhash(df, text_col_a, text_col_b, label_col,
+                     threshold, shingle_size):
+    gen = MinHashGenerator()
+
+    labels = []
+    preds = []
+
+    t0 = time.perf_counter()
+
+    for _, row in df.iterrows():
+        shingles_a = generate_word_shingles(
+            _get_tokens(str(row[text_col_a])),
+            shingle_size
+        )
+
+        shingles_b = generate_word_shingles(
+            _get_tokens(str(row[text_col_b])),
+            shingle_size
+        )
+
+        sig_a = gen.generate_signature(shingles_a)
+        sig_b = gen.generate_signature(shingles_b)
+
+        sim = calculate_minhash_similarity(sig_a, sig_b)
+
+        preds.append(int(sim >= threshold))
+        labels.append(int(row[label_col]))
+
+    elapsed = time.perf_counter() - t0
+
+    p, r, f = _compute_metrics(preds, labels)
+
+    return p, r, f, elapsed
+
+
+def evaluate_simhash(df, text_col_a, text_col_b,
+                     label_col, threshold):
+
+    gen = SimHashGenerator()
+
+    all_tokens = []
+
+    for _, row in df.iterrows():
+        all_tokens.append(_get_tokens(str(row[text_col_a])))
+        all_tokens.append(_get_tokens(str(row[text_col_b])))
+
+    idf = gen.compute_idf(all_tokens)
+
+    preds = []
+    labels = []
+
+    t0 = time.perf_counter()
+
+    for _, row in df.iterrows():
+
+        fp1 = gen.generate_simhash(
+            _get_tokens(str(row[text_col_a])),
+            idf
+        )
+
+        fp2 = gen.generate_simhash(
+            _get_tokens(str(row[text_col_b])),
+            idf
+        )
+
+        sim = simhash_similarity(fp1, fp2)
+
+        preds.append(int(sim >= threshold))
+        labels.append(int(row[label_col]))
+
+    elapsed = time.perf_counter() - t0
+
+    p, r, f = _compute_metrics(preds, labels)
+
+    return p, r, f, elapsed
+
+
 
 # ──────────────────────────────────────────────────────────────────
 # Command: pairs
@@ -282,58 +359,76 @@ def handle_pairs(args: argparse.Namespace) -> None:
     labels = [int(row[args.label_col]) for _, row in df.iterrows()]
     preds: List[int] = []
 
-    if args.algorithm == "minhash":
-        print(f"[*] Running MinHash (threshold={args.threshold})...")
-        gen = MinHashGenerator()
-        t0 = time.perf_counter()
-        for _, row in df.iterrows():
-            shingles_a = generate_word_shingles(
-                _get_tokens(str(row[args.text_col_a])), args.shingle_size)
-            shingles_b = generate_word_shingles(
-                _get_tokens(str(row[args.text_col_b])), args.shingle_size)
-            sig_a = gen.generate_signature(shingles_a)
-            sig_b = gen.generate_signature(shingles_b)
-            sim = calculate_minhash_similarity(sig_a, sig_b)
-            preds.append(1 if sim >= args.threshold else 0)
-        t_elapsed = time.perf_counter() - t0
-        method_label = "MinHash"
+    mh_p, mh_r, mh_f, mh_t = evaluate_minhash(
+    df,
+    args.text_col_a,
+    args.text_col_b,
+    args.label_col,
+    args.threshold,
+    args.shingle_size
+    )
 
-    else:  # simhash
-        print(f"[*] Building IDF table from {len(all_token_lists)} token lists...")
-        gen_sh = SimHashGenerator()
-        idf = gen_sh.compute_idf(all_token_lists)
-        print(f"[*] Running SimHash (threshold={args.threshold})...")
-        t0 = time.perf_counter()
-        for _, row in df.iterrows():
-            fp_a = gen_sh.generate_simhash(
-                _get_tokens(str(row[args.text_col_a])), idf)
-            fp_b = gen_sh.generate_simhash(
-                _get_tokens(str(row[args.text_col_b])), idf)
-            sim = simhash_similarity(fp_a, fp_b)
-            preds.append(1 if sim >= args.threshold else 0)
-        t_elapsed = time.perf_counter() - t0
-        method_label = "SimHash"
+    sh_p, sh_r, sh_f, sh_t = evaluate_simhash(
+        df,
+        args.text_col_a,
+        args.text_col_b,
+        args.label_col,
+        0.85
+    )
 
-    prec, rec, f1 = _compute_metrics(preds, labels)
-    pairs_per_sec = round(n / t_elapsed, 1) if t_elapsed > 0 else 0.0
 
     _save_csv(
         [
-            ["Method", "Threshold", "Precision", "Recall", "F1_Score",
-             "Time_sec", "Pairs_per_sec", "Pairs_evaluated"],
-            [method_label, args.threshold, prec, rec, f1,
-             round(t_elapsed, 3), pairs_per_sec, n],
-        ],
-        args.output,
+            [
+            "Method",
+            "Threshold",
+            "Precision",
+            "Recall",
+            "F1_Score",
+            "Time_sec",
+            "Pairs_per_sec",
+            "Pairs_evaluated"
+            ],
+
+            [
+            "MinHash",
+            args.threshold,
+            mh_p,
+            mh_r,
+            mh_f,
+            round(mh_t,3),
+            round(n/mh_t,1),
+            n
+            ],
+
+            [
+            "SimHash",
+            0.85,
+            sh_p,
+            sh_r,
+            sh_f,
+            round(sh_t,3),
+            round(n/sh_t,1),
+            n
+            ]
+
+            ],
+        args.output
     )
 
-    print(f"\n[+] {method_label} results:")
-    print(f"    Precision      : {prec}")
-    print(f"    Recall         : {rec}")
-    print(f"    F1 Score       : {f1}")
-    print(f"    Time           : {t_elapsed:.2f}s  ({pairs_per_sec} pairs/sec)")
-    print(f"[+] Saved to: {args.output}")
+    print("\n[+] MinHash")
+    print(f"    Precision : {mh_p}")
+    print(f"    Recall    : {mh_r}")
+    print(f"    F1 Score  : {mh_f}")
+    print(f"    Time      : {mh_t:.2f}s")
 
+    print("\n[+] SimHash")
+    print(f"    Precision : {sh_p}")
+    print(f"    Recall    : {sh_r}")
+    print(f"    F1 Score  : {sh_f}")
+    print(f"    Time      : {sh_t:.2f}s")
+
+    print(f"\n[+] Saved to: {args.output}")
 
 # ──────────────────────────────────────────────────────────────────
 # Argument parser
