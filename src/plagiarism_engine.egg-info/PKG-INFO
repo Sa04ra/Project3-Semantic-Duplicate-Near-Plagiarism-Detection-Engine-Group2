@@ -1,7 +1,0 @@
-Metadata-Version: 2.4
-Name: plagiarism-engine
-Version: 0.1.0
-Summary: Semantic Duplicate & Near-Plagiarism Detection Engine
-Requires-Python: >=3.9
-Requires-Dist: numpy
-Requires-Dist: pandas

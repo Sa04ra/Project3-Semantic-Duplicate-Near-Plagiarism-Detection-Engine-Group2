@@ -13,3 +13,6 @@ outputs/
 
 # Ignore Jupyter checkpoints
 .ipynb_checkpoints/
+
+
+src/plagiarism_engine.egg-info/
