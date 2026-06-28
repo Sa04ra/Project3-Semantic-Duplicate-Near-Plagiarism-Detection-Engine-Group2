@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "plagiarism-engine"
+version = "0.1.0"
+description = "Semantic Duplicate & Near-Plagiarism Detection Engine"
+requires-python = ">=3.9"
+dependencies = [
+    "numpy",
+    "pandas",
+]
+
+[project.scripts]
+plagiarism-engine = "plagiarism_engine.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
