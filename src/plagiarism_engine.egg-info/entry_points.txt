@@ -1,0 +1,2 @@
+[console_scripts]
+plagiarism-engine = plagiarism_engine.cli:main
